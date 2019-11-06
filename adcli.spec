@@ -1,6 +1,6 @@
 Name:      adcli
 Version:   0.8.2
-Release:   5
+Release:   6
 Summary:   A helper library and tools for Active Directory client operations
 Group:     Development/Libraries
 License:   LGPLv2+
@@ -77,12 +77,12 @@ make check
 %postun -p /sbin/ldconfig
 
 %clean
-rm -rf ${buildroot}
+rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%license COPYING
-%doc AUTHORS ChangeLog
+%license COPYING AUTHORS
+%doc ChangeLog
 %{_sbindir}/adcli
 
 %files help
@@ -92,6 +92,12 @@ rm -rf ${buildroot}
 %doc %{_mandir}/man8/*
 
 %changelog
+* Wed Oct 9 2019 openEuler Buildteam <buildteam@openeuler.org> - 0.8.2-6
+- Type:enhancement
+- ID:NA
+- SUG:NA
+- DESC: change the directory of AUTHORS
+
 * Fri Sep 27 2019 openEuler Buildteam <buildteam@openeuler.org> - 0.8.2-5
 - Type:enhancement
 - ID:NA
