@@ -1,0 +1,360 @@
+From ee71c4c0614a504b4472bf64a24fc3c18c6b9987 Mon Sep 17 00:00:00 2001
+From: Sumit Bose <sbose@redhat.com>
+Date: Thu, 14 Jun 2018 16:49:26 +0200
+Subject: [PATCH 22/23] Add add-service-principal and remove-service-principal
+ options
+
+Currently it is only possible to specific a service name for service
+principals but not to set the full service principal. This is e.g.
+needed if there is a service running on a host which should be reachable
+by a different DNS name as well.
+
+With this patch service principal can be added and removed by specifying
+the full name.
+
+Related to https://bugzilla.redhat.com/show_bug.cgi?id=1547014
+---
+ doc/adcli.xml      |  21 ++++++++
+ library/adenroll.c | 139 +++++++++++++++++++++++++++++++++++++++++++++++++++--
+ library/adenroll.h |   8 +++
+ library/adldap.c   |  16 ++++--
+ tools/computer.c   |  13 +++++
+ 5 files changed, 189 insertions(+), 8 deletions(-)
+
+diff --git a/doc/adcli.xml b/doc/adcli.xml
+index b246190..83b6981 100644
+--- a/doc/adcli.xml
++++ b/doc/adcli.xml
+@@ -290,6 +290,14 @@ Password for Administrator:
+ 			not allow that Kerberos tickets can be forwarded to the
+ 			host.</para></listitem>
+ 		</varlistentry>
++		<varlistentry>
++			<term><option>--add-service-principal=<parameter>service/hostname</parameter></option></term>
++			<listitem><para>Add a service principal name. In
++			contrast to the <option>--service-name</option> the
++			hostname part can be specified as well in case the
++			service should be accessible with a different host
++			name as well.</para></listitem>
++		</varlistentry>
+ 		<varlistentry>
+ 			<term><option>--show-details</option></term>
+ 			<listitem><para>After a successful join print out information
+@@ -416,6 +424,19 @@ $ adcli update --login-ccache=/tmp/krbcc_123
+ 			not allow that Kerberos tickets can be forwarded to the
+ 			host.</para></listitem>
+ 		</varlistentry>
++		<varlistentry>
++			<term><option>--add-service-principal=<parameter>service/hostname</parameter></option></term>
++			<listitem><para>Add a service principal name. In
++			contrast to the <option>--service-name</option> the
++			hostname part can be specified as well in case the
++			service should be accessible with a different host
++			name as well.</para></listitem>
++		</varlistentry>
++		<varlistentry>
++			<term><option>--remove-service-principal=<parameter>service/hostname</parameter></option></term>
++			<listitem><para>Remove a service principal name from
++			the keytab and the AD host object.</para></listitem>
++		</varlistentry>
+ 		<varlistentry>
+ 			<term><option>--show-details</option></term>
+ 			<listitem><para>After a successful join print out information
+diff --git a/library/adenroll.c b/library/adenroll.c
+index b508caf..c4ba537 100644
+--- a/library/adenroll.c
++++ b/library/adenroll.c
+@@ -95,6 +95,9 @@ struct _adcli_enroll {
+ 	char **service_principals;
+ 	int service_principals_explicit;
+ 
++	char **service_principals_to_add;
++	char **service_principals_to_remove;
++
+ 	char *user_principal;
+ 	int user_princpal_generate;
+ 
+@@ -332,6 +335,43 @@ add_service_names_to_service_principals (adcli_enroll *enroll)
+ 	return ADCLI_SUCCESS;
+ }
+ 
++static adcli_result
++add_and_remove_service_principals (adcli_enroll *enroll)
++{
++	int length = 0;
++	size_t c;
++	const char **list;
++
++	if (enroll->service_principals != NULL) {
++		length = seq_count (enroll->service_principals);
++	}
++
++	list = adcli_enroll_get_service_principals_to_add (enroll);
++	if (list != NULL) {
++		for (c = 0; list[c] != NULL; c++) {
++			enroll->service_principals = _adcli_strv_add (enroll->service_principals,
++			                                              strdup (list[c]),
++			                                              &length);
++			if (enroll->service_principals == NULL) {
++				return ADCLI_ERR_UNEXPECTED;
++			}
++		}
++	}
++
++	list = adcli_enroll_get_service_principals_to_remove (enroll);
++	if (list != NULL) {
++		for (c = 0; list[c] != NULL; c++) {
++			/* enroll->service_principals typically refects the
++			 * order of the principal in the keytabm so it is not
++			 * ordered. */
++			_adcli_strv_remove_unsorted (enroll->service_principals,
++			                             list[c], &length);
++		}
++	}
++
++	return ADCLI_SUCCESS;
++}
++
+ static adcli_result
+ ensure_service_principals (adcli_result res,
+                            adcli_enroll *enroll)
+@@ -343,10 +383,14 @@ ensure_service_principals (adcli_result res,
+ 
+ 	if (!enroll->service_principals) {
+ 		assert (enroll->service_names != NULL);
+-		return add_service_names_to_service_principals (enroll);
++		res = add_service_names_to_service_principals (enroll);
+ 	}
+ 
+-	return ADCLI_SUCCESS;
++	if (res == ADCLI_SUCCESS) {
++		res = add_and_remove_service_principals (enroll);
++	}
++
++	return res;
+ }
+ 
+ static adcli_result
+@@ -1593,6 +1637,39 @@ free_principal_salts (krb5_context k5,
+ 	free (salts);
+ }
+ 
++static adcli_result
++remove_principal_from_keytab (adcli_enroll *enroll,
++                              krb5_context k5,
++                              const char *principal_name)
++{
++	krb5_error_code code;
++	krb5_principal principal;
++	match_principal_kvno closure;
++
++	code = krb5_parse_name (k5, principal_name, &principal);
++	if (code != 0) {
++		_adcli_err ("Couldn't parse principal: %s: %s",
++		            principal_name, krb5_get_error_message (k5, code));
++		return ADCLI_ERR_FAIL;
++	}
++
++	closure.kvno = enroll->kvno;
++	closure.principal = principal;
++	closure.matched = 0;
++
++	code = _adcli_krb5_keytab_clear (k5, enroll->keytab,
++	                                 match_principal_and_kvno, &closure);
++	krb5_free_principal (k5, principal);
++
++	if (code != 0) {
++		_adcli_err ("Couldn't update keytab: %s: %s",
++		            enroll->keytab_name, krb5_get_error_message (k5, code));
++		return ADCLI_ERR_FAIL;
++	}
++
++	return ADCLI_SUCCESS;
++}
++
+ static adcli_result
+ add_principal_to_keytab (adcli_enroll *enroll,
+                          krb5_context k5,
+@@ -1702,6 +1779,17 @@ update_keytab_for_principals (adcli_enroll *enroll,
+ 			return res;
+ 	}
+ 
++	if (enroll->service_principals_to_remove != NULL) {
++		for (i = 0; enroll->service_principals_to_remove[i] != NULL; i++) {
++			res = remove_principal_from_keytab (enroll, k5,
++			                                    enroll->service_principals_to_remove[i]);
++			if (res != ADCLI_SUCCESS) {
++				_adcli_warn ("Failed to remove %s from keytab.",
++				             enroll->service_principals_to_remove[i]);
++			}
++		}
++	}
++
+ 	return ADCLI_SUCCESS;
+ }
+ 
+@@ -2029,8 +2117,11 @@ adcli_enroll_update (adcli_enroll *enroll,
+ 	if (_adcli_check_nt_time_string_lifetime (value,
+ 	                adcli_enroll_get_computer_password_lifetime (enroll))) {
+ 		/* Do not update keytab if neither new service principals have
+-                 * to be added nor the user principal has to be changed. */
+-		if (enroll->service_names == NULL && (enroll->user_principal == NULL || enroll->user_princpal_generate)) {
++                 * to be added or deleted nor the user principal has to be changed. */
++		if (enroll->service_names == NULL
++		              && (enroll->user_principal == NULL || enroll->user_princpal_generate)
++		              && enroll->service_principals_to_add == NULL
++		              && enroll->service_principals_to_remove == NULL) {
+ 			flags |= ADCLI_ENROLL_NO_KEYTAB;
+ 		}
+ 		flags |= ADCLI_ENROLL_PASSWORD_VALID;
+@@ -2581,3 +2672,43 @@ adcli_enroll_set_trusted_for_delegation (adcli_enroll *enroll,
+ 	enroll->trusted_for_delegation = value;
+ 	enroll->trusted_for_delegation_explicit = 1;
+ }
++
++const char **
++adcli_enroll_get_service_principals_to_add (adcli_enroll *enroll)
++{
++	return_val_if_fail (enroll != NULL, NULL);
++
++	return (const char **)enroll->service_principals_to_add;
++}
++
++void
++adcli_enroll_add_service_principal_to_add (adcli_enroll *enroll,
++                                           const char *value)
++{
++	return_if_fail (enroll != NULL);
++	return_if_fail (value != NULL);
++
++	enroll->service_principals_to_add = _adcli_strv_add (enroll->service_principals_to_add,
++							    strdup (value), NULL);
++	return_if_fail (enroll->service_principals_to_add != NULL);
++}
++
++const char **
++adcli_enroll_get_service_principals_to_remove (adcli_enroll *enroll)
++{
++	return_val_if_fail (enroll != NULL, NULL);
++
++	return (const char **)enroll->service_principals_to_remove;
++}
++
++void
++adcli_enroll_add_service_principal_to_remove (adcli_enroll *enroll,
++                                              const char *value)
++{
++	return_if_fail (enroll != NULL);
++	return_if_fail (value != NULL);
++
++	enroll->service_principals_to_remove = _adcli_strv_add (enroll->service_principals_to_remove,
++							    strdup (value), NULL);
++	return_if_fail (enroll->service_principals_to_remove != NULL);
++}
+diff --git a/library/adenroll.h b/library/adenroll.h
+index be2ca18..f87dffa 100644
+--- a/library/adenroll.h
++++ b/library/adenroll.h
+@@ -98,6 +98,14 @@ const char **      adcli_enroll_get_service_principals  (adcli_enroll *enroll);
+ void               adcli_enroll_set_service_principals  (adcli_enroll *enroll,
+                                                          const char **value);
+ 
++const char **      adcli_enroll_get_service_principals_to_add (adcli_enroll *enroll);
++void               adcli_enroll_add_service_principal_to_add (adcli_enroll *enroll,
++                                                              const char *value);
++
++const char **      adcli_enroll_get_service_principals_to_remove (adcli_enroll *enroll);
++void               adcli_enroll_add_service_principal_to_remove (adcli_enroll *enroll,
++                                                                 const char *value);
++
+ const char *       adcli_enroll_get_user_principal      (adcli_enroll *enroll);
+ 
+ void               adcli_enroll_set_user_principal      (adcli_enroll *enroll,
+diff --git a/library/adldap.c b/library/adldap.c
+index 07dc373..d93efb7 100644
+--- a/library/adldap.c
++++ b/library/adldap.c
+@@ -210,16 +210,24 @@ _adcli_ldap_have_in_mod (LDAPMod *mod,
+ 	struct berval *vals;
+ 	struct berval **pvals;
+ 	int count = 0;
++	int count_have = 0;
+ 	int i;
+ 	int ret;
+ 
+-	/* Already in berval format, just compare */
+-	if (mod->mod_op & LDAP_MOD_BVALUES)
+-		return _adcli_ldap_have_vals (mod->mod_vals.modv_bvals, have);
+-
+ 	/* Count number of values */
+ 	for (i = 0; mod->mod_vals.modv_strvals[i] != 0; i++)
+ 		count++;
++	for (i = 0; have[i] != 0; i++)
++		count_have++;
++
++	/* If numbers different something has to be added or removed */
++	if (count != count_have) {
++		return 0;
++	}
++
++	/* Already in berval format, just compare */
++	if (mod->mod_op & LDAP_MOD_BVALUES)
++		return _adcli_ldap_have_vals (mod->mod_vals.modv_bvals, have);
+ 
+ 	vals = malloc (sizeof (struct berval) * (count + 1));
+ 	pvals = malloc (sizeof (struct berval *) * (count + 1));
+diff --git a/tools/computer.c b/tools/computer.c
+index b905fd1..377d449 100644
+--- a/tools/computer.c
++++ b/tools/computer.c
+@@ -110,6 +110,8 @@ typedef enum {
+ 	opt_add_samba_data,
+ 	opt_samba_data_tool,
+ 	opt_trusted_for_delegation,
++	opt_add_service_principal,
++	opt_remove_service_principal,
+ } Option;
+ 
+ static adcli_tool_desc common_usages[] = {
+@@ -138,6 +140,8 @@ static adcli_tool_desc common_usages[] = {
+ 	{ opt_computer_password_lifetime, "lifetime of the host accounts password in days", },
+ 	{ opt_trusted_for_delegation, "set/unset the TRUSTED_FOR_DELEGATION flag\n"
+ 	                              "in the userAccountControl attribute", },
++	{ opt_add_service_principal, "add the given service principal to the account\n" },
++	{ opt_remove_service_principal, "remove the given service principal from the account\n" },
+ 	{ opt_no_password, "don't prompt for or read a password" },
+ 	{ opt_prompt_password, "prompt for a password if necessary" },
+ 	{ opt_stdin_password, "read a password from stdin (until EOF) if\n"
+@@ -289,6 +293,12 @@ parse_option (Option opt,
+ 			adcli_enroll_set_trusted_for_delegation (enroll, false);
+ 		}
+ 		return;
++	case opt_add_service_principal:
++		adcli_enroll_add_service_principal_to_add (enroll, optarg);
++		return;
++	case opt_remove_service_principal:
++		adcli_enroll_add_service_principal_to_remove (enroll, optarg);
++		return;
+ 	case opt_verbose:
+ 		return;
+ 
+@@ -353,6 +363,7 @@ adcli_tool_computer_join (adcli_conn *conn,
+ 		{ "os-service-pack", optional_argument, NULL, opt_os_service_pack },
+ 		{ "user-principal", optional_argument, NULL, opt_user_principal },
+ 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },
++		{ "add-service-principal", required_argument, NULL, opt_add_service_principal },
+ 		{ "show-details", no_argument, NULL, opt_show_details },
+ 		{ "show-password", no_argument, NULL, opt_show_password },
+ 		{ "add-samba-data", no_argument, NULL, opt_add_samba_data },
+@@ -458,6 +469,8 @@ adcli_tool_computer_update (adcli_conn *conn,
+ 		{ "user-principal", optional_argument, NULL, opt_user_principal },
+ 		{ "computer-password-lifetime", optional_argument, NULL, opt_computer_password_lifetime },
+ 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },
++		{ "add-service-principal", required_argument, NULL, opt_add_service_principal },
++		{ "remove-service-principal", required_argument, NULL, opt_remove_service_principal },
+ 		{ "show-details", no_argument, NULL, opt_show_details },
+ 		{ "show-password", no_argument, NULL, opt_show_password },
+ 		{ "add-samba-data", no_argument, NULL, opt_add_samba_data },
+-- 
+2.14.4
+
