@@ -1,0 +1,4 @@
+version_control: git
+src_repo: git@gitlab.freedesktop.org:realmd/adcli.git
+tag_prefix: ^
+seperator: .
