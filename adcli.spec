@@ -1,36 +1,20 @@
 Name:      adcli
-Version:   0.8.2
-Release:   6
+Version:   0.9.0
+Release:   1
 Summary:   A helper library and tools for Active Directory client operations
 Group:     Development/Libraries
 License:   LGPLv2+
 URL:       http://cgit.freedesktop.org/realmd/adcli
-Source0:   http://www.freedesktop.org/software/realmd/releases/adcli-%{version}.tar.gz
+Source0:   https://gitlab.freedesktop.org/realmd/adcli/uploads/02d8757266c24fdc10822306582287bf/adcli-%{version}.tar.gz
 
-Patch1:    0001-Remove-upper-case-only-check-when-looking-for-the-Ne.patch
-Patch2:	   0002-Use-strdup-if-offset-are-used.patch
-Patch3:	   0003-correct-spelling-of-adcli_tool_computer_delete-descr.patch
-Patch4:	   0004-doc-explain-that-all-credential-cache-types-are-supp.patch
-Patch5:	   0005-library-add-adcli_conn_is_writeable.patch
-Patch6:	   0006-Handle-kvno-increment-for-RODCs.patch
-Patch7:	   0007-Fix-memory-leak-in-test_check_nt_time_string_lifetim.patch
-Patch8:	   0008-library-add-_adcli_bin_sid_to_str.patch
-Patch9:	   0009-library-add-_adcli_call_external_program.patch
-Patch10:   0010-library-add-_adcli_ldap_parse_sid.patch
-Patch11:   0011-library-add-lookup_domain_sid.patch
-Patch12:   0012-library-add-adcli_conn_get_domain_sid.patch
-Patch13:   0013-tools-add-option-add-samba-data.patch
-Patch14:   0014-tools-store-Samba-data-if-requested.patch
-Patch15:   0015-make-Samba-data-tool-configurable.patch
-Patch16:   0016-Add-trusted-for-delegation-option.patch
-Patch17:   0017-Only-update-attributes-given-on-the-command-line.patch
-Patch18:   0018-update-allow-to-add-service-names.patch
-Patch19:   0019-Calculate-enctypes-in-a-separate-function.patch
-Patch20:   0020-join-add-all-attributes-while-creating-computer-obje.patch
-Patch21:   0021-util-add-_adcli_strv_remove_unsorted.patch
-Patch22:   0022-Add-add-service-principal-and-remove-service-princip.patch
-Patch23:   0023-adcli_conn_is_writeable-do-not-crash-id-domain_disco.patch
-Patch24:   0024-doc-fix-typos-in-the-adcli-man-page.patch
+Patch0:    0001-man-move-note-to-the-right-section.patch
+Patch1:    0002-tools-add-show-computer-command.patch
+Patch2:    0003-add-description-option-to-join-and-update.patch
+Patch3:    0004-Use-GSS-SPNEGO-if-available.patch
+Patch4:    0005-add-option-use-ldaps.patch
+Patch5:    0006-discovery-fix.patch
+Patch6:    0007-delete-do-not-exit-if-keytab-cannot-be-read.patch
+Patch7:    0008-tools-disable-SSSD-s-locator-plugin.patch
 
 BuildRequires:	gcc intltool pkgconfig libtool gettext-devel krb5-devel
 BuildRequires:	openldap-devel libxslt xmlto git
@@ -92,6 +76,9 @@ rm -rf %{buildroot}
 %doc %{_mandir}/man8/*
 
 %changelog
+* Wed Aug 26 2020 wangchen <wangchen137@huawei.com> - 0.9.0-1
+- update to 0.9.0
+
 * Wed Oct 9 2019 openEuler Buildteam <buildteam@openeuler.org> - 0.8.2-6
 - Type:enhancement
 - ID:NA

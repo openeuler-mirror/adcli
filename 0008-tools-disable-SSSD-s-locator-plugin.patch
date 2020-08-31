@@ -1,0 +1,41 @@
+From 50d580c58dab5928cadfc6ca82aedccee58eaced Mon Sep 17 00:00:00 2001
+From: Sumit Bose <sbose@redhat.com>
+Date: Fri, 5 Jun 2020 17:28:28 +0200
+Subject: [PATCH] tools: disable SSSD's locator plugin
+
+MIT's libkrb5 checks available locator plugins first before checking the
+config file. This might cause issues when the locator plugin returns a
+different DC than the one used for the LDAP connection if some data must
+be replicated.
+
+This patch sets the SSSD_KRB5_LOCATOR_DISABLE environment variable to
+'true' to disable SSSD's locator plugin for adcli.
+
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=1762633
+---
+ tools/tools.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tools/tools.c b/tools/tools.c
+index 9d422f2..1b6d879 100644
+--- a/tools/tools.c
++++ b/tools/tools.c
+@@ -296,6 +296,7 @@ cleanup_krb5_conf_directory (void)
+ 	}
+ 
+ 	unsetenv ("KRB5_CONFIG");
++	unsetenv ("SSSD_KRB5_LOCATOR_DISABLE");
+ }
+ 
+ static void
+@@ -394,6 +395,7 @@ setup_krb5_conf_directory (adcli_conn *conn)
+ 		adcli_krb5_conf_filename = filename;
+ 		adcli_krb5_d_directory = snippets;
+ 		setenv ("KRB5_CONFIG", adcli_krb5_conf_filename, 1);
++		setenv ("SSSD_KRB5_LOCATOR_DISABLE", "true", 1);
+ 
+ 	} else {
+ 		free (filename);
+-- 
+2.23.0
+
