@@ -1,20 +1,11 @@
 Name:      adcli
-Version:   0.9.0
+Version:   0.9.1
 Release:   1
 Summary:   A helper library and tools for Active Directory client operations
 Group:     Development/Libraries
 License:   LGPLv2+
-URL:       http://cgit.freedesktop.org/realmd/adcli
-Source0:   https://gitlab.freedesktop.org/realmd/adcli/uploads/02d8757266c24fdc10822306582287bf/adcli-%{version}.tar.gz
-
-Patch0:    0001-man-move-note-to-the-right-section.patch
-Patch1:    0002-tools-add-show-computer-command.patch
-Patch2:    0003-add-description-option-to-join-and-update.patch
-Patch3:    0004-Use-GSS-SPNEGO-if-available.patch
-Patch4:    0005-add-option-use-ldaps.patch
-Patch5:    0006-discovery-fix.patch
-Patch6:    0007-delete-do-not-exit-if-keytab-cannot-be-read.patch
-Patch7:    0008-tools-disable-SSSD-s-locator-plugin.patch
+URL:       https://gitlab.freedesktop.org/realmd/adcli
+Source0:   https://gitlab.freedesktop.org/sbose/adcli/uploads/30880d967e79cee789194435e70fbf30/adcli-%{version}.tar.gz
 
 BuildRequires:	gcc intltool pkgconfig libtool gettext-devel krb5-devel
 BuildRequires:	openldap-devel libxslt xmlto git
@@ -76,6 +67,9 @@ rm -rf %{buildroot}
 %doc %{_mandir}/man8/*
 
 %changelog
+* Tue Jul 27 2021 fuanan <fuanan3@huawei.com> - 0.9.1-1
+- update to 0.9.1
+
 * Thu Jul 23 2020 Liquor <lirui130@huawei.com> - 0.9.0-1
 - update to 0.9.0
 
