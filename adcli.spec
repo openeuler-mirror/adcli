@@ -1,11 +1,13 @@
 Name:      adcli
 Version:   0.9.1
-Release:   1
+Release:   2
 Summary:   A helper library and tools for Active Directory client operations
 Group:     Development/Libraries
 License:   LGPLv2+
 URL:       https://gitlab.freedesktop.org/realmd/adcli
 Source0:   https://gitlab.freedesktop.org/sbose/adcli/uploads/30880d967e79cee789194435e70fbf30/adcli-%{version}.tar.gz
+
+Patch0: backport-configure-check-for-ns_get16-and-ns_get32-as-well.patch
 
 BuildRequires:	gcc intltool pkgconfig libtool gettext-devel krb5-devel
 BuildRequires:	openldap-devel libxslt xmlto git
@@ -67,6 +69,9 @@ rm -rf %{buildroot}
 %doc %{_mandir}/man8/*
 
 %changelog
+* Tue Aug 10 2021 yixiangzhike <zhangxingliang3@huawei.com> - 0.9.1-2
+- fix the compilation failure with new version glibc
+
 * Tue Jul 27 2021 fuanan <fuanan3@huawei.com> - 0.9.1-1
 - update to 0.9.1
 
