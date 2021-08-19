@@ -1,6 +1,6 @@
 Name:      adcli
 Version:   0.9.1
-Release:   2
+Release:   3
 Summary:   A helper library and tools for Active Directory client operations
 Group:     Development/Libraries
 License:   LGPLv2+
@@ -10,7 +10,7 @@ Source0:   https://gitlab.freedesktop.org/sbose/adcli/uploads/30880d967e79cee789
 Patch0: backport-configure-check-for-ns_get16-and-ns_get32-as-well.patch
 
 BuildRequires:	gcc intltool pkgconfig libtool gettext-devel krb5-devel
-BuildRequires:	openldap-devel libxslt xmlto git
+BuildRequires:	openldap-devel libxslt xmlto
 
 Requires:   cyrus-sasl-gssapi
 Obsoletes:  adcli-devel < 0.5
@@ -31,7 +31,7 @@ Obsoletes: %{name}-doc < %{version}-%{release}
 Man page and other related documents for %{name}.
 
 %prep
-%autosetup -n %{name}-%{version} -p1 -Sgit
+%autosetup -n %{name}-%{version} -p1
 
 %build
 autoreconf -f -i -v
@@ -69,6 +69,9 @@ rm -rf %{buildroot}
 %doc %{_mandir}/man8/*
 
 %changelog
+* Thu Aug 12 2021 chenyanpanHW <chenyanpan@huawei.com> - 0.9.1-3
+- DESC: delete -Sgit from %autosetup, and delete BuildRequires git
+
 * Tue Aug 10 2021 yixiangzhike <zhangxingliang3@huawei.com> - 0.9.1-2
 - fix the compilation failure with new version glibc
 
